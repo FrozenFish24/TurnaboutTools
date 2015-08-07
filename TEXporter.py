@@ -18,7 +18,7 @@ def main():
         header = f.read(0x14)
         data = f.read()
 
-    header = struct.unpack('>9xBxBxB6x', header)
+    header = struct.unpack('<9xHBxB6x', header)
     type = header[2]
 
     if args.wh is None:
@@ -30,16 +30,21 @@ def main():
 
     image = Image.new('RGBA', (w, h))
 
+    #  32bpp RGBA, non-mipmapped, tiled 2x2 -> 2x2 -> 2x2 (8x8px)
     if type == 3:
         for i in range(0, len(data), 4):
             a, b, g, r = struct.unpack('BBBB', data[i:i + 4])
             x, y = get_xy(i, 4, image.width, image.height)
             image.putpixel((x, y), (r, g, b, a))
-    else:
+    #  24bpp RGB, non-mipmapped, tiled 2x2 -> 2x2 -> 2x2 (8x8px)
+    elif type == 17:
         for i in range(0, len(data), 3):
             b, g, r = struct.unpack('BBB', data[i:i + 3])
             x, y = get_xy(i, 3, image.width, image.height)
             image.putpixel((x, y), (r, g, b, 255))
+    else:
+        print('Format currently unsupported')
+        return
 
     image.save(args.outfile)
 

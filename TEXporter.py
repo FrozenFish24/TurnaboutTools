@@ -1,38 +1,50 @@
-import sys
+import os
 import struct
+import argparse
 from PIL import Image
 
 
 def main():
-    if len(sys.argv) < 2:
-        print('Please specify a .tex file')
-        return
+    parser = argparse.ArgumentParser(description='Convert Dai Gyakuten Saiban .tex files to common image formats')
+    parser.add_argument('tex', metavar='file.tex', help='the .tex file to be converted')
+    parser.add_argument('-o', dest='outfile', help='the file name of the output image file')
+    parser.add_argument('-wh', type=int, metavar=('w', 'h'), nargs=2, help='manually specify a width and height')
+    args = parser.parse_args()
 
-    filename = sys.argv[1]
+    if args.outfile is None:
+        args.outfile = os.path.splitext(args.tex)[0] + '.png'
 
-    with open(filename, 'rb') as f:
+    with open(args.tex, 'rb') as f:
         header = f.read(0x14)
         data = f.read()
 
-    header = struct.unpack('>10xH8x', header)
+    header = struct.unpack('>9xBxBxB6x', header)
+    type = header[2]
 
-    # This is almost certainly wrong
-    h = header[0]*32
-    w = (len(data)/3)/h
+    if args.wh is None:
+        w = header[0] * 4
+        h = header[1] * 32
+    else:
+        w = args.wh[0]
+        h = args.wh[1]
 
-    image = Image.new('RGB', (w, h))
+    image = Image.new('RGBA', (w, h))
 
-    for i in range(0, len(data), 3):
-        b, g, r = struct.unpack('BBB', data[i:i + 3])
+    if type == 3:
+        for i in range(0, len(data), 4):
+            a, b, g, r = struct.unpack('BBBB', data[i:i + 4])
+            x, y = get_xy(i, 4, image.width, image.height)
+            image.putpixel((x, y), (r, g, b, a))
+    else:
+        for i in range(0, len(data), 3):
+            b, g, r = struct.unpack('BBB', data[i:i + 3])
+            x, y = get_xy(i, 3, image.width, image.height)
+            image.putpixel((x, y), (r, g, b, 255))
 
-        x, y = get_xy(i, 3, image.width, image.height)
-        image.putpixel((x, y), (r, g, b))
-
-    image.save(filename + '-out.png')
+    image.save(args.outfile)
 
 
 def get_xy(offset, pitch, width, height):
-
     offset = offset / pitch
     l_tile = offset / 64
     offset -= l_tile * 64

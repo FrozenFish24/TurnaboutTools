@@ -61,7 +61,7 @@ def main():
             x, y = get_xy(i, 3, image.width, image.height)
             image.putpixel((x, y), (r, g, b, 255))
     else:
-        print('Unknown format, ' + type)
+        print('Unknown format, ' + str(type))
         return
 
     image.save(args.outfile)

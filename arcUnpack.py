@@ -3,6 +3,9 @@ import argparse
 import struct
 import zlib
 
+cmp_levels = {0x7801: 0,
+              0x789C: 6,
+              0x78DA: 9}
 
 def main():
     parser = argparse.ArgumentParser(description='Unpack Dai Gyakuten Saiban .arc files')
@@ -19,6 +22,7 @@ def main():
     file_count = struct.unpack('<H', data[6:8])[0]
 
     path_list = []
+    file_cmp = []
 
     start = 0xC
     entry_length = 0x50
@@ -50,6 +54,9 @@ def main():
             full_path += '.' + struct.unpack('3s', dec[0:3])[0].lower()
 
             path_list.append(full_path)
+            file_cmp.append(struct.unpack('>H', data[data_start:data_start+2])[0])
+
+            print('Unpacking ' + full_path)
 
             with open(full_path, 'wb') as f:
                 f.write(dec)
@@ -57,8 +64,8 @@ def main():
             print(full_path + ' failed to decompress, ' + e.message)
 
     with open('manifest.txt', 'w') as f:
-        for i in path_list:
-            f.write(i + '\n')
+        for i in range(0, len(path_list)):
+            f.write(path_list[i] + ',' + str(cmp_levels.get(file_cmp[i], 6)) + '\n')
 
     os.chdir('..')
 

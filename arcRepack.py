@@ -3,11 +3,12 @@ import struct
 import zlib
 import argparse
 
-
 def main():
     parser = argparse.ArgumentParser(description='Repack extracted Dai Gyakuten Saiban .arc files')
     parser.add_argument('dir', help='the directory containing the extracted .arc and manifest.txt')
     parser.add_argument('-o', dest='outfile', help='the file name of the output .arc file')
+    parser.add_argument('-f', type=int, choices=[0,1,2,3,4,5,6,7,8,9],
+                        help='force a compression level across all files in archive')
     args = parser.parse_args()
 
     if args.outfile is None:
@@ -36,6 +37,8 @@ def main():
     for filename in file_list:
 
         filename = filename.rstrip('\n')
+        filename, cmp_lvl = filename.split(',')
+        cmp_lvl = int(cmp_lvl)
 
         my_tuple = os.path.splitext(filename)  # Re-name and un-tuple this
 
@@ -52,7 +55,10 @@ def main():
 
         data_position = (arc_index_length + len(arc_data))
 
-        comp = zlib.compress(file_str, 6)  # 6 Gives identical compression to original archive
+        if args.f is None:
+            comp = zlib.compress(file_str, cmp_lvl)
+        else:
+            comp = zlib.compress(file_str, args.f)
         arc_data += comp
         real_len = len(file_str) | 0x40000000
 

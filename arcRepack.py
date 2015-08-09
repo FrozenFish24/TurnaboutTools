@@ -48,7 +48,7 @@ def main():
         name_only = my_tuple[0]
         ext = int(my_tuple[1][1:], 16)
 
-        arc_index += struct.pack('<64sI', name_only, ext)
+        arc_index += struct.pack('<64sI', name_only.replace('/', '\\'), ext)
 
         with open(filename, 'rb') as f:
             file_str = f.read()

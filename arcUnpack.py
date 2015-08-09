@@ -35,7 +35,8 @@ def main():
         file_entry = struct.unpack('<64sLLLL',
                                    data[start + (entry_length * i):start + (entry_length * i) + entry_length])
 
-        full_path = file_entry[0].split('\0', 1)[0]
+        full_path = file_entry[0].replace('\\', '/')
+        full_path = full_path.split('\0', 1)[0]
         path_only = os.path.split(full_path)[0]
 
         data_length = file_entry[2]

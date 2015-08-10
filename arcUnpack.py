@@ -7,6 +7,7 @@ cmp_levels = {0x7801: 0,
               0x789C: 6,
               0x78DA: 9}
 
+
 def main():
     parser = argparse.ArgumentParser(description='Unpack Dai Gyakuten Saiban .arc files')
     parser.add_argument('arc', metavar='file.arc', help='the .arc file to be extracted')
@@ -55,7 +56,7 @@ def main():
             full_path += '.' + struct.unpack('3s', dec[0:3])[0].lower()
 
             path_list.append(full_path)
-            file_cmp.append(struct.unpack('>H', data[data_start:data_start+2])[0])
+            file_cmp.append(struct.unpack('>H', data[data_start:data_start + 2])[0])
 
             print('Unpacking ' + full_path)
 

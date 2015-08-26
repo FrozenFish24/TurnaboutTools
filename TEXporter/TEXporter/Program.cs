@@ -43,6 +43,13 @@ namespace TEXporter
             else if(mode == "i")
             {
                 Bitmap image = (Bitmap)Bitmap.FromFile(imageFile);
+
+                if (image.Width != width || image.Height != height)
+                {
+                    Console.WriteLine("Image dimensions don't match, required dimensions are " + width + ", " + height);
+                    return;
+                }
+
                 byte[] data = insert(type, width, height, image, header);
                 File.WriteAllBytes("out.tex", data);
             }

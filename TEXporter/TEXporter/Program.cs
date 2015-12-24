@@ -12,35 +12,65 @@ namespace TEXporter
 
         static void Main(string[] args)
         {
-            mode = args[0];
-            filename = args[1];
             string imageFile = "";
 
-            if(args.Length > 2)
+            if (args[0] == "e")
+            {
+                mode = args[0];
+                filename = args[1];
+            }
+            else if (args[0] == "i")
+            {
+                mode = args[0];
+                filename = args[1];
                 imageFile = args[2];
+            }
+            else
+            {
+                mode = "e";
+                filename = args[0];
+            }
 
             byte[] tex = File.ReadAllBytes(filename);
 
-            byte[] header = new byte[0x14];
-            Array.Copy(tex, header, 0x14);
+            string magic = System.Text.Encoding.ASCII.GetString(tex, 0, 4);
 
-            Array.Copy(tex, 0x14, tex, 0, tex.Length - 0x14);
-            Array.Resize(ref tex, tex.Length - 0x14);
+            uint[] dwords = new uint[3];
+            for (int i = 0; i < 3; i++)
+                dwords[i] = BitConverter.ToUInt32(tex, i * 4 + 4);
 
-            byte mipmap_count = header[8];
-            int w = BitConverter.ToInt16(header, 9);
-            byte h = header[11];
-            byte type = header[13];
+            int constant = (int)(dwords[0] & 0xfff);
+            int unknown1 = (int)((dwords[0] >> 12) & 0xfff);
+            int sizeShift = (int)((dwords[0] >> 24) & 0xf);
+            int unknown2 = (int)((dwords[0] >> 28) & 0xf);
 
-            int width = w * 4;
-            int height = h * 32;
+            int mipmapCount = (int)(dwords[1] & 0x3f);
+            int width = (int)((dwords[1] >> 6) & 0x1fff);
+            int height = (int)((dwords[1] >> 19) & 0x1fff);
 
-            if(mode == "e")
+            int unknown3 = (int)(dwords[2] & 0xff);
+            int type = (int)((dwords[2] >> 8) & 0xff);
+            int unknown5 = (int)((dwords[2] >> 16) & 0x1fff);
+
+            int headerLength = 0x10 + (4 * mipmapCount);
+
+            byte[] header = new byte[headerLength];
+            Array.Copy(tex, header, headerLength);
+
+            Array.Copy(tex, headerLength, tex, 0, tex.Length - headerLength);
+            Array.Resize(ref tex, tex.Length - headerLength);
+
+            Console.WriteLine("Type: " + type);
+            Console.WriteLine("Mimmaps: " + mipmapCount);
+            Console.WriteLine("Size: " + width + ", " + height);
+
+            if (mode == "e")
             {
                 Bitmap image = extract(type, width, height, tex);
-                image.Save(filename.Replace(".tex", ".png"));
+                if (image != null)
+                    image.Save(filename.Replace(".tex", ".png"));
             }
-            else if(mode == "i")
+            else if (mode == "i")
             {
                 Bitmap image = (Bitmap)Bitmap.FromFile(imageFile);
 
@@ -68,7 +98,7 @@ namespace TEXporter
                     byte b = data[i + 1];
                     byte g = data[i + 2];
                     byte r = data[i + 3];
-                    
+
                     Point p = getXY(i, 4, width, height);
 
                     image.SetPixel(p.X, p.Y, Color.FromArgb(a, r, g, b));
@@ -88,7 +118,7 @@ namespace TEXporter
                     byte pixel = data[i];
                     byte a = (byte)(((pixel << 4) & 0xF0) | (pixel & 0xF));
                     pixel = (byte)((pixel & 0xF0) | (pixel >> 4));
-                    
+
                     Point p = getXY(i, 1, width, height);
 
                     image.SetPixel(p.X, p.Y, Color.FromArgb(a, pixel, pixel, pixel));
@@ -102,7 +132,7 @@ namespace TEXporter
                     byte b = data[i];
                     byte g = data[i + 1];
                     byte r = data[i + 2];
-                    
+
                     Point p = getXY(i, 3, width, height);
 
                     image.SetPixel(p.X, p.Y, Color.FromArgb(255, r, g, b));
@@ -119,17 +149,17 @@ namespace TEXporter
 
         static byte[] insert(int type, int width, int height, Bitmap image, byte[] header)
         {
-            byte[] data = {};
+            byte[] data = { };
 
             //32bpp RGBA, non - mipmapped, tiled 2x2 -> 2x2 -> 2x2 (8x8px)
             if (type == 3)
             {
                 //Append the header first
-                data = new byte[header.Length + (width*height*4)];
+                data = new byte[header.Length + (width * height * 4)];
                 for (int i = 0; i < header.Length; i++)
                     data[i] = header[i];
 
-                for(int x = 0; x < image.Width; x++)
+                for (int x = 0; x < image.Width; x++)
                 {
                     for (int y = 0; y < image.Height; y++)
                     {
@@ -152,17 +182,17 @@ namespace TEXporter
             else if (type == 16)
             {
                 //Append the header first
-                data = new byte[header.Length + (width*height)];
+                data = new byte[header.Length + (width * height)];
                 for (int i = 0; i < header.Length; i++)
                     data[i] = header[i];
 
-                for(int x = 0; x < image.Width; x++)
+                for (int x = 0; x < image.Width; x++)
                 {
                     for (int y = 0; y < image.Height; y++)
                     {
                         int position = header.Length + getOffset(x, y, 1, width, height);
 
-                        byte a = image.GetPixel(x,y).A;
+                        byte a = image.GetPixel(x, y).A;
                         byte r = image.GetPixel(x, y).R;
                         byte g = image.GetPixel(x, y).G;
                         byte b = image.GetPixel(x, y).B;
@@ -179,7 +209,7 @@ namespace TEXporter
             else if (type == 17)
             {
                 //Append the header first
-                data = new byte[header.Length + (width*height*3)];
+                data = new byte[header.Length + (width * height * 3)];
                 for (int i = 0; i < header.Length; i++)
                     data[i] = header[i];
 
@@ -236,13 +266,13 @@ namespace TEXporter
         }
 
         static int getOffset(int x, int y, int pitch, int width, int height)
-        {   
+        {
             int l_tiles_x = x / 8;
-            int x_offset = x - (l_tiles_x*8);
+            int x_offset = x - (l_tiles_x * 8);
             int m_tiles_x = x_offset / 4;
-            x_offset = x_offset - (m_tiles_x*4);
+            x_offset = x_offset - (m_tiles_x * 4);
             int s_tiles_x = x_offset / 2;
-            x_offset = x_offset - (s_tiles_x*2);
+            x_offset = x_offset - (s_tiles_x * 2);
 
             int l_tiles_y = y / 8;
             int y_offset = y - (l_tiles_y * 8);
@@ -250,12 +280,12 @@ namespace TEXporter
             y_offset = y_offset - (m_tiles_y * 4);
             int s_tiles_y = y_offset / 2;
             y_offset = y_offset - (s_tiles_y * 2);
-            
-            int i = l_tiles_y * (width/8) + l_tiles_x;
+
+            int i = l_tiles_y * (width / 8) + l_tiles_x;
             int j = m_tiles_y * (8 / 4) + m_tiles_x;
             int k = s_tiles_y * (4 / 2) + s_tiles_x;
             int l = y_offset * 2 + x_offset;
-            
+
             int final = (i * 64) + (j * 16) + (k * 4) + l;
             final *= pitch;
 

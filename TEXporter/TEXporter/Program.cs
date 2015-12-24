@@ -14,6 +14,12 @@ namespace TEXporter
         {
             string imageFile = "";
 
+            if (args.Length < 1)
+            {
+                Console.WriteLine("No arguments");
+                return;
+            }
+
             if (args[0] == "e")
             {
                 mode = args[0];

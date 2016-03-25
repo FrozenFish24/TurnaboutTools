@@ -12,7 +12,7 @@ namespace TEXporter
 
         static void Main(string[] args)
         {
-            Console.WriteLine("TEXporter 1.2\n");
+            Console.WriteLine("TEXporter 0.2\n");
 
             string imageFile = "";
 

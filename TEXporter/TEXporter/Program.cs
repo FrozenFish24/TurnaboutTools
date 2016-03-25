@@ -12,11 +12,13 @@ namespace TEXporter
 
         static void Main(string[] args)
         {
+            Console.WriteLine("TEXporter 1.2\n");
+
             string imageFile = "";
 
             if (args.Length < 1)
             {
-                Console.WriteLine("No arguments");
+                Console.WriteLine("No arguments provided");
                 return;
             }
 
@@ -67,12 +69,12 @@ namespace TEXporter
             Array.Resize(ref tex, tex.Length - headerLength);
 
             Console.WriteLine("Type: " + type);
-            Console.WriteLine("Mimmaps: " + mipmapCount);
+            Console.WriteLine("Mipmaps: " + mipmapCount);
             Console.WriteLine("Size: " + width + ", " + height);
 
             if (mode == "e")
             {
-                Bitmap image = extract(type, width, height, tex);
+                Bitmap image = Extract(type, width, height, tex);
                 if (image != null)
                     image.Save(filename.Replace(".tex", ".png"));
             }
@@ -86,161 +88,217 @@ namespace TEXporter
                     return;
                 }
 
-                byte[] data = insert(type, width, height, image, header);
-                File.WriteAllBytes("out.tex", data);
+                byte[] data = Insert(type, width, height, image, imageFile, header);
+
+                if(type != 11)
+                    File.WriteAllBytes("out.tex", data);
             }
         }
 
-        static Bitmap extract(int type, int width, int height, byte[] data)
+        static Bitmap Extract(int type, int width, int height, byte[] data)
         {
             Bitmap image = new Bitmap(width, height);
 
             //32bpp RGBA, non - mipmapped, tiled 2x2 -> 2x2 -> 2x2 (8x8px)
-            if (type == 3)
+            switch (type)
             {
-                for (int i = 0; i < data.Length; i += 4)
-                {
-                    byte a = data[i];
-                    byte b = data[i + 1];
-                    byte g = data[i + 2];
-                    byte r = data[i + 3];
+                case 3:
+                    {
+                        for (int i = 0; i < width * height * 4; i += 4)
+                        {
+                            byte a = data[i];
+                            byte b = data[i + 1];
+                            byte g = data[i + 2];
+                            byte r = data[i + 3];
 
-                    Point p = getXY(i, 4, width, height);
+                            Point p = GetXY(i, 4, width, height);
 
-                    image.SetPixel(p.X, p.Y, Color.FromArgb(a, r, g, b));
-                }
-            }
-            //Likely DXT3 or 5
-            else if (type == 12)
-            {
-                Console.WriteLine("Known format, not implemented");
-                return null;
-            }
-            //8bpp, 4bit luminance, 4bit alpha(?), non mip - mapped, tiled 2x2 -> 2x2 -> 2x2 (8x8px)[IMPERFECT]
-            else if (type == 16)
-            {
-                for (int i = 0; i < data.Length; i++)
-                {
-                    byte pixel = data[i];
-                    byte a = (byte)(((pixel << 4) & 0xF0) | (pixel & 0xF));
-                    pixel = (byte)((pixel & 0xF0) | (pixel >> 4));
+                            image.SetPixel(p.X, p.Y, Color.FromArgb(a, r, g, b));
+                        }
+                        break;
+                    }
+                //ETC1
+                case 11:
+                    {
+                        if (!File.Exists("etc1tool.exe"))
+                        {
+                            Console.Write("\nERROR: TEX file contains ETC1 compressed data, etc1tool is required to process this format. ");
+                            Console.Write("Please aquire it from the Android SDK and place it in the same folder as TEXporter.exe");
+                            return null;
+                        }
 
-                    Point p = getXY(i, 1, width, height);
+                        Format11.Extract(ref data, width, height, filename);
+                        return null;
+                    }
+                //DXT2, 3, 4 or 5?
+                case 12:
+                    {
+                        //image = Format11.dump(data, width, height);
+                        //break;
+                        Console.WriteLine("Known format, not implemented");
+                        return null;
+                    }
+                case 14:
+                    {
+                        for (int i = 0; i < (width * height) / 2; i++)
+                        {
+                            //byte pixel = data[i];
+                            //byte a = (byte)(((pixel << 4) & 0xF0) | (pixel & 0xF));
+                            //pixel = (byte)((pixel & 0xF0) | (pixel >> 4));
 
-                    image.SetPixel(p.X, p.Y, Color.FromArgb(a, pixel, pixel, pixel));
-                }
-            }
-            //24bpp RGB, non - mipmapped, tiled 2x2 -> 2x2 -> 2x2 (8x8px)
-            else if (type == 17)
-            {
-                for (int i = 0; i < data.Length; i += 3)
-                {
-                    byte b = data[i];
-                    byte g = data[i + 1];
-                    byte r = data[i + 2];
+                            Point p = GetXY(i, 1, width, height);
 
-                    Point p = getXY(i, 3, width, height);
+                            image.SetPixel(p.X, p.Y, Color.FromArgb(data[i], 255, 255, 255));
+                        }
+                        break;
+                    }
+                //8bpp, 4bit luminance, 4bit alpha(?), non mip - mapped, tiled 2x2 -> 2x2 -> 2x2 (8x8px)
+                case 16:
+                    {
+                        for (int i = 0; i < width * height; i++)
+                        {
+                            byte pixel = data[i];
+                            byte a = (byte)(((pixel << 4) & 0xF0) | (pixel & 0xF));
+                            pixel = (byte)((pixel & 0xF0) | (pixel >> 4));
 
-                    image.SetPixel(p.X, p.Y, Color.FromArgb(255, r, g, b));
-                }
-            }
-            else
-            {
-                Console.WriteLine("Not implemented, " + type);
-                return null;
+                            Point p = GetXY(i, 1, width, height);
+
+                            image.SetPixel(p.X, p.Y, Color.FromArgb(a, pixel, pixel, pixel));
+                        }
+                        break;
+                    }
+                //24bpp RGB, non - mipmapped, tiled 2x2 -> 2x2 -> 2x2 (8x8px)
+                case 17:
+                    {
+                        for (int i = 0; i < width * height * 3; i += 3)
+                        {
+                            byte b = data[i];
+                            byte g = data[i + 1];
+                            byte r = data[i + 2];
+
+                            Point p = GetXY(i, 3, width, height);
+
+                            image.SetPixel(p.X, p.Y, Color.FromArgb(255, r, g, b));
+                        }
+                        break;
+                    }
+                default:
+                    {
+                        Console.WriteLine("Not implemented, " + type);
+                        return null;
+                    }
             }
 
             return image;
         }
 
-        static byte[] insert(int type, int width, int height, Bitmap image, byte[] header)
+        static byte[] Insert(int type, int width, int height, Bitmap image, string imageFile, byte[] header)
         {
             byte[] data = { };
 
             //32bpp RGBA, non - mipmapped, tiled 2x2 -> 2x2 -> 2x2 (8x8px)
-            if (type == 3)
+            switch (type)
             {
-                //Append the header first
-                data = new byte[header.Length + (width * height * 4)];
-                for (int i = 0; i < header.Length; i++)
-                    data[i] = header[i];
-
-                for (int x = 0; x < image.Width; x++)
-                {
-                    for (int y = 0; y < image.Height; y++)
+                case 3:
                     {
-                        int position = header.Length + getOffset(x, y, 4, width, height);
+                        //Append the header first
+                        data = new byte[header.Length + (width * height * 4)];
+                        for (int i = 0; i < header.Length; i++)
+                            data[i] = header[i];
 
-                        data[position] = ((byte)image.GetPixel(x, y).A);
-                        data[position + 1] = ((byte)image.GetPixel(x, y).B);
-                        data[position + 2] = ((byte)image.GetPixel(x, y).G);
-                        data[position + 3] = ((byte)image.GetPixel(x, y).R);
+                        for (int x = 0; x < image.Width; x++)
+                        {
+                            for (int y = 0; y < image.Height; y++)
+                            {
+                                int position = header.Length + GetOffset(x, y, 4, width, height);
+
+                                data[position] = ((byte)image.GetPixel(x, y).A);
+                                data[position + 1] = ((byte)image.GetPixel(x, y).B);
+                                data[position + 2] = ((byte)image.GetPixel(x, y).G);
+                                data[position + 3] = ((byte)image.GetPixel(x, y).R);
+                            }
+                        }
+                        break;
                     }
-                }
-            }
-            //Likely DXT3 or 5
-            else if (type == 12)
-            {
-                Console.WriteLine("Known format, not implemented");
-                return null;
-            }
-            //8bpp, 4bit luminance, 4bit alpha(?), non mip - mapped, tiled 2x2 -> 2x2 -> 2x2 (8x8px)
-            else if (type == 16)
-            {
-                //Append the header first
-                data = new byte[header.Length + (width * height)];
-                for (int i = 0; i < header.Length; i++)
-                    data[i] = header[i];
-
-                for (int x = 0; x < image.Width; x++)
-                {
-                    for (int y = 0; y < image.Height; y++)
+                //ETC1
+                case 11:
                     {
-                        int position = header.Length + getOffset(x, y, 1, width, height);
+                        if (!File.Exists("etc1tool.exe"))
+                        {
+                            Console.Write("\nERROR: TEX file contains ETC1 compressed data, etc1tool is required to process this format. ");
+                            Console.Write("Please aquire it from the Android SDK and place it in the same folder as TEXporter.exe");
+                            return null;
+                        }
 
-                        byte a = image.GetPixel(x, y).A;
-                        byte r = image.GetPixel(x, y).R;
-                        byte g = image.GetPixel(x, y).G;
-                        byte b = image.GetPixel(x, y).B;
-
-                        int luminance = (r + g + b) / 3;
-
-                        byte pixel = (byte)((luminance & 0xF0) | (a & 0xF));
-
-                        data[position] = pixel;
+                        Format11.Insert(width, height, imageFile, header);
+                        return null;
                     }
-                }
-            }
-            //24bpp RGB, non - mipmapped, tiled 2x2 -> 2x2 -> 2x2 (8x8px)
-            else if (type == 17)
-            {
-                //Append the header first
-                data = new byte[header.Length + (width * height * 3)];
-                for (int i = 0; i < header.Length; i++)
-                    data[i] = header[i];
-
-                for (int x = 0; x < image.Width; x++)
-                {
-                    for (int y = 0; y < image.Height; y++)
+                //DXT2, 3, 4 or 5?
+                case 12:
                     {
-                        int position = header.Length + getOffset(x, y, 3, width, height);
-
-                        data[position] = ((byte)image.GetPixel(x, y).B);
-                        data[position + 1] = ((byte)image.GetPixel(x, y).G);
-                        data[position + 2] = ((byte)image.GetPixel(x, y).R);
+                        Console.WriteLine("Known format, not implemented");
+                        return null;
                     }
-                }
-            }
-            else
-            {
-                Console.WriteLine("Not implemented, " + type);
-                return null;
+                //8bpp, 4bit luminance, 4bit alpha(?), non mip - mapped, tiled 2x2 -> 2x2 -> 2x2 (8x8px)
+                case 16:
+                    {
+                        //Append the header first
+                        data = new byte[header.Length + (width * height)];
+                        for (int i = 0; i < header.Length; i++)
+                            data[i] = header[i];
+
+                        for (int x = 0; x < image.Width; x++)
+                        {
+                            for (int y = 0; y < image.Height; y++)
+                            {
+                                int position = header.Length + GetOffset(x, y, 1, width, height);
+
+                                byte a = image.GetPixel(x, y).A;
+                                byte r = image.GetPixel(x, y).R;
+                                byte g = image.GetPixel(x, y).G;
+                                byte b = image.GetPixel(x, y).B;
+
+                                int luminance = (r + g + b) / 3;
+
+                                byte pixel = (byte)((luminance & 0xF0) | (a & 0xF));
+
+                                data[position] = pixel;
+                            }
+                        }
+                        break;
+                    }
+                //24bpp RGB, non - mipmapped, tiled 2x2 -> 2x2 -> 2x2 (8x8px)
+                case 17:
+                    {
+                        //Append the header first
+                        data = new byte[header.Length + (width * height * 3)];
+                        for (int i = 0; i < header.Length; i++)
+                            data[i] = header[i];
+
+                        for (int x = 0; x < image.Width; x++)
+                        {
+                            for (int y = 0; y < image.Height; y++)
+                            {
+                                int position = header.Length + GetOffset(x, y, 3, width, height);
+
+                                data[position] = ((byte)image.GetPixel(x, y).B);
+                                data[position + 1] = ((byte)image.GetPixel(x, y).G);
+                                data[position + 2] = ((byte)image.GetPixel(x, y).R);
+                            }
+                        }
+                        break;
+                    }
+                default:
+                    {
+                        Console.WriteLine("Not implemented, " + type);
+                        return null;
+                    }
             }
 
             return data;
         }
 
-        static Point getXY(int offset, int pitch, int width, int height)
+        static Point GetXY(int offset, int pitch, int width, int height) //Replace with proper Z-order handling
         {
             offset = offset / pitch;
             int l_tile = offset / 64;
@@ -271,7 +329,7 @@ namespace TEXporter
             return new Point(x, y);
         }
 
-        static int getOffset(int x, int y, int pitch, int width, int height)
+        static int GetOffset(int x, int y, int pitch, int width, int height) //Replace with proper Z-order handling
         {
             int l_tiles_x = x / 8;
             int x_offset = x - (l_tiles_x * 8);

@@ -27,6 +27,8 @@ Insert syntax:
 
 `TEXporter.exe i original_file.tex image.png`
 
+For now the output of this command is saved to `out.tex`
+
 Format 11 (0xB) uses ETC1 compression and as such currently relies on etc1tool from the Android SDK in order to function, I cannot redistribute it with my application, so you'll have to obtain it yourself.
 
 You can find the Android SDK here:

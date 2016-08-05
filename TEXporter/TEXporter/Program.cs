@@ -298,62 +298,56 @@ namespace TEXporter
             return data;
         }
 
-        static Point GetXY(int offset, int pitch, int width, int height) //Replace with proper Z-order handling
+        static Point GetXY(int offset, int bytesPerPixel, int width, int height)
         {
-            offset = offset / pitch;
-            int l_tile = offset / 64;
-            offset -= l_tile * 64;
-            int m_tile = offset / 16;
-            offset -= m_tile * 16;
-            int s_tile = offset / 4;
-            offset -= s_tile * 4;
-            int remainder = offset;
+            const int pixelsInBlock = 64; //Each block is 4px * 4 * 4
+            const int blockWidth = 8;
 
-            int img_tile_x = width / 8;
+            offset /= bytesPerPixel; //Convert file offset to pixel index
 
-            int l_tile_x = (l_tile % img_tile_x) * 8;
-            int l_tile_y = (l_tile / img_tile_x) * 8;
+            int indexWithinBlock = offset % pixelsInBlock;
+            int blockIndex = (offset - indexWithinBlock) / pixelsInBlock;
 
-            int m_tile_x = (m_tile % 2) * 4;
-            int m_tile_y = (m_tile / 2) * 4;
+            Point xyWithinBlock = Morton.ZtoXY((uint)indexWithinBlock); //Find pixels local position within block
 
-            int s_tile_x = (s_tile % 2) * 2;
-            int s_tile_y = (s_tile / 2) * 2;
+            int imageBlocksWide = width / blockWidth;
+            int imageBlocksHigh = height / blockWidth;
 
-            int rem_tile_x = remainder % 2;
-            int rem_tile_y = remainder / 2;
+            //Calculate block x,y
+            int blockX = (blockIndex % imageBlocksWide);
+            int blockY = (blockIndex / imageBlocksWide);
 
-            int x = l_tile_x + m_tile_x + s_tile_x + rem_tile_x;
-            int y = l_tile_y + m_tile_y + s_tile_y + rem_tile_y;
+            //Add block position to pixel position to find absolute position
+            xyWithinBlock.X += blockWidth * blockX;
+            xyWithinBlock.Y += blockWidth * blockY;
 
-            return new Point(x, y);
+            return xyWithinBlock;
         }
 
-        static int GetOffset(int x, int y, int pitch, int width, int height) //Replace with proper Z-order handling
+        static int GetOffset(int x, int y, int bytesPerPixel, int width, int height)
         {
-            int l_tiles_x = x / 8;
-            int x_offset = x - (l_tiles_x * 8);
-            int m_tiles_x = x_offset / 4;
-            x_offset = x_offset - (m_tiles_x * 4);
-            int s_tiles_x = x_offset / 2;
-            x_offset = x_offset - (s_tiles_x * 2);
+            const int pixelsInBlock = 64; //Each block is 4px * 4 * 4
+            const int blockWidth = 8;
 
-            int l_tiles_y = y / 8;
-            int y_offset = y - (l_tiles_y * 8);
-            int m_tiles_y = y_offset / 4;
-            y_offset = y_offset - (m_tiles_y * 4);
-            int s_tiles_y = y_offset / 2;
-            y_offset = y_offset - (s_tiles_y * 2);
+            int imageBlocksWide = width / blockWidth;
+            int imageBlocksHigh = height / blockWidth;
 
-            int i = l_tiles_y * (width / 8) + l_tiles_x;
-            int j = m_tiles_y * (8 / 4) + m_tiles_x;
-            int k = s_tiles_y * (4 / 2) + s_tiles_x;
-            int l = y_offset * 2 + x_offset;
+            //Calculate block x,y
+            int blockX = x / blockWidth;
+            int blockY = y / blockWidth;
 
-            int final = (i * 64) + (j * 16) + (k * 4) + l;
-            final *= pitch;
+            //Calculate linear block index
+            int blockIndex = (blockY * imageBlocksWide) + blockX;
 
-            return final;
+            //Get local x, y coordinate
+            x -= blockWidth * blockX;
+            y -= blockWidth * blockY;
+
+            int offset = (int)Morton.XYtoZ((uint)x, (uint)y); //Transform local position to offset
+
+            offset += (blockIndex * pixelsInBlock);
+
+            return offset * bytesPerPixel;
         }
     }
 }
